@@ -24,16 +24,23 @@
   "Send a message 'msg' to client at connection 'ws'. Message will be
   encoded according to 'encode'"
   [ws msg & {:keys [encode] :or {encode :binary}}]
-  (if (= (get-in @srv-db [:conns ws])
+  (if (>= (get-in @srv-db [:conns ws])
          (@srv-db :bpsize))
-    (do (Thread/sleep 1000)
+    (do (async/>!! (@srv-db :chan)
+                   {:op :bpwait
+                    :payload {:ws ws :msgcnt (get-in @srv-db [:conns ws])}})
+        (Thread/sleep 1000)
         (recur ws msg {:encode encode}))
     (let [msg {:op :msg :payload msg}
           emsg (if (= encode :binary)
                  (mpk/pack msg)
                  (json/write-str msg))]
-      (if (send! ws msg)
-        (swap! srv-db (fn[db] (update-in db [:conns ws] inc)))
+      (if (send! ws emsg)
+        (do (swap! srv-db (fn[db] (update-in db [:conns ws] inc)))
+            (async/>!! {:op :sent
+                        :payload {:ws ws
+                                  :msgcnt (get-in @srv-db [:conns ws])
+                                  :msg msg}}))
         (do (Thread/sleep 1000)
             (recur ws msg {:encode encode}))))))
 
@@ -54,7 +61,7 @@
          (fn[db] (update-in
                  db [:conns ws]
                  (constantly (dec (@srv-db :bpsize))))))
-  (send-msg ws {:op :reset :payload (@srv-db :bpsize)})
+  (send! ws {:op :reset :payload (@srv-db :bpsize)})
   (async/>!! (@srv-db :chan) {:op :open :payload ws}))
 
 

@@ -47,7 +47,7 @@
       :msg
       (let [client-rec (@cli-db ch)
             msg (msg :payload)]
-        (if (= (inc (client-rec :msgcnt)) (client-rec :bpsize))
+        (if (>= (inc (client-rec :msgcnt)) (client-rec :bpsize))
           (do (swap! cli-db (fn[db] (update-in db [ch :msgcnt] (constantly 0))))
               (wss/send ch :binary (mpk/pack {:op :reset :payload 0})))
           (swap! cli-db (fn[db] (update-in db [ch :msgcnt] inc))))
@@ -62,7 +62,7 @@
               (format "OPEN unequal channels %s %s" open-ws ws))
       (swap! cli-db
              (fn[db]
-               (let [client-rec (assoc client-rec :ws ws :msgcnt 0)]
+               (let [client-rec (assoc client-rec :ws ws :msgcnt 0 :bpsize 0)]
                  (assoc db client-chan client-rec, open-ws client-rec))))
       (async/>!! (client-rec :chan) {:op :open :payload ws}))))
 
