@@ -4,6 +4,8 @@
   (:require
    [hanasu.server :as srv]
    [hanasu.client :as cli]
+   [clojure.core.async :as async :refer [>! <! go-loop go]]
+
    [environ.core :refer [env]]
 
    [msgpack.core :as mpk]
@@ -16,27 +18,27 @@
 ;;; Server example stuff ===========================================
 
 (defn broadcast [ch payload]
-  (let [msg (mpk/pack {:type "broadcast" :payload payload})]
+  (let [msg {:type "broadcast" :payload payload}]
     (run! #(srv/send-msg % msg)
-          (mapv (fn[[ch m]] ch) (srv/get-chans))))
-  (srv/send-msg ch (mpk/pack {:type "broadcastResult" :payload payload})))
+          (mapv (fn[[ch m]] ch) (srv/get-ws))))
+  (srv/send-msg ch {:type "broadcastResult" :payload payload}))
 
 (defn echo [ch payload]
-  (srv/send-msg ch (json/write-str {:type "echo" :payload payload})))
+  (srv/send-msg ch {:type "echo" :payload payload} :encode :text))
 
 (defn unknown-type-response [ch _]
   (srv/send-msg ch (json/write-str
              {:type "error" :payload "ERROR: unknown message type"})))
 
-(defn msg-handler [ch msg]
-  (let [parsed (if (bytes? msg)
-                 (mpk/unpack msg)
-                 (json/read-str msg))]
-    ((case (or (get parsed :type) (get parsed "type"))
+(defn msg-handler [msg]
+  (let [{:keys [data ws]} msg
+        {:keys [type payload]} data]
+    (prn :DATA data :TYPE type :payload payload)
+    ((case type
         "echo" echo
         "broadcast" broadcast
         unknown-type-response)
-     ch (or (get parsed :payload) (get parsed "payload")))))
+     ws payload)))
 
 ;;; Server END example stuff ===========================================
 
@@ -44,17 +46,17 @@
 
 ;;; Client example stuff ===============================================
 
-(defn on-open [ws]
+(defn cli-open [ws]
   (println "Client connected to WebSocket."))
 
-(defn on-close [ws code reason]
+(defn cli-close [ws code reason]
   (println "Client websocket connection closed.\n"
            (format "[%s] %s" code reason)))
 
-(defn on-error [ws e]
+(defn cli-error [ws e]
   (println "ERROR:" e))
 
-(defn msg-handler [ws msg]
+(defn cli-handler [ws msg]
   (prn (format "got '%s' message: %s" (type msg) msg)))
 
 
@@ -68,9 +70,21 @@
 
 (comment
 
-  (srv/setup :msg-handler msg-handler)
+  (let [ch (srv/start-server 3000)]
+    (println "Server start, reading msgs from " ch)
+    (def srv-handler
+      (go-loop [msg (<! ch)]
+        (let [{:keys [op payload]} msg]
+          (case op
+            :msg
+            (msg-handler payload)
+            :open (println :open :payload payload)
+            :close (println :close :payload payload)
+            :stop (println "Stopping reads...")
+            (println :WTF msg))
+          (when (not= op :stop)
+            (recur (<! ch)))))))
 
-  (srv/start-server 3000)
   (srv/stop-server)
 
   ;; JSON

@@ -37,7 +37,8 @@
                  (json/write-str msg))]
       (if (send! ws emsg)
         (do (swap! srv-db (fn[db] (update-in db [:conns ws] inc)))
-            (async/>!! {:op :sent
+            (async/>!! (@srv-db :chan)
+                       {:op :sent
                         :payload {:ws ws
                                   :msgcnt (get-in @srv-db [:conns ws])
                                   :msg msg}}))
@@ -60,8 +61,8 @@
   (swap! srv-db
          (fn[db] (update-in
                  db [:conns ws]
-                 (constantly (dec (@srv-db :bpsize))))))
-  (send! ws {:op :reset :payload (@srv-db :bpsize)})
+                 (constantly 0))))
+  (send! ws (mpk/pack {:op :reset :payload (@srv-db :bpsize)}))
   (async/>!! (@srv-db :chan) {:op :open :payload ws}))
 
 
@@ -88,7 +89,7 @@
                     (hkit/run-server app {:port port :thread threads})
                     :chan (async/chan (async/buffer bufsize))
                     :bpsize (- bufsize 3))))
-    (@srv-db :server)))
+    (@srv-db :chan)))
 
 (defn stop-server []
   (let [server (@srv-db :server)]
