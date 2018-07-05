@@ -23,17 +23,35 @@
 #_(def url "ws://localhost:3000/ws")
 
 
+(defn send-msg [ch msg & {:keys [encode] :or {encode :binary}}]
+  (let [msg {:op :msg :payload msg}
+        emsg (if (= encode :binary)
+               (mpk/pack msg)
+               (json/write-str msg))
+        enc (if (= encode :binary) :byte :text)]
+    (wss/send ch enc emsg)))
+
+
 (defn msg-handler [ch msg]
-  (let [decoded-msg (if (bytes? msg)
-                      (mpk/unpack msg)
-                      (json/read-str msg))
-        msg (if (and (map? decoded-msg)
-                     (contains? decoded-msg :op)
-                     (contains? decoded-msg :payload))
-              decoded-msg
-              {:op :msg :payload decoded-msg})
-        client-rec (@cli-db ch)]
-    (async/>!! (client-rec :chan) msg)))
+  (let [msg (if (bytes? msg)
+              (mpk/unpack msg)
+              (json/read-str msg))]
+    (case (msg :op)
+      :reset
+      (let [bpsize (msg :payload)]
+        (swap! cli-db
+               (fn[db] (-> db (update-in [ch :msgcnt] (constantly 0))
+                             (update-in [ch :bpsize] (constantly bpsize)))))
+        (wss/send ch :binary (mpk/pack {:op :reset :payload 0})))
+
+      :msg
+      (let [client-rec (@cli-db ch)
+            msg (msg :payload)]
+        (if (= (inc (client-rec :msgcnt)) (client-rec :bpsize))
+          (do (swap! cli-db (fn[db] (update-in db [ch :msgcnt] (constantly 0))))
+              (wss/send ch :binary (mpk/pack {:op :reset :payload 0})))
+          (swap! cli-db (fn[db] (update-in db [ch :msgcnt] inc))))
+        (async/>!! (client-rec :chan) msg)))))
 
 (defn on-open [open-ws]
   (let [cur-db @cli-db
@@ -44,7 +62,7 @@
               (format "OPEN unequal channels %s %s" open-ws ws))
       (swap! cli-db
              (fn[db]
-               (let [client-rec (assoc client-rec :ws ws)]
+               (let [client-rec (assoc client-rec :ws ws :msgcnt 0)]
                  (assoc db client-chan client-rec, open-ws client-rec))))
       (async/>!! (client-rec :chan) {:op :open :payload ws}))))
 
@@ -95,13 +113,7 @@
     (async/>!! (@cli-db :close-chan) [client ws client-chan])
     client-chan))
 
-(defn send-msg [ch msg & {:keys [encode] :or {encode :binary}}]
-  (let [msg {:op :msg :payload msg}
-        emsg (if (= encode :binary)
-               (mpk/pack msg)
-               (json/write-str msg))
-        enc (if (= encode :binary) :byte :text)]
-    (wss/send ch enc emsg)))
+
 
 
 
