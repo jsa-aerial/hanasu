@@ -1,61 +1,66 @@
 (ns hanasu.server
   (:require [org.httpkit.server :as hkit :refer [send! with-channel]]
-            [compojure.core :refer [GET defroutes]]
-            ;;[clojure.core.async :as async]
+            [compojure.core :refer [GET routes]]
+            [clojure.core.async :as async]
 
-            #_[cheshire.core :as json]
-            #_[com.rpl.specter :as sp]
-            [clojure.data.json :as json]
-
-            [clojure.tools.logging :as log]))
+            [msgpack.core :as mpk]
+            [msgpack.clojure-extensions]
+            [clojure.data.json :as json]))
 
 
 
-(defonce srv-db (atom {}))
-#_(reset! srv-db {})
+(defonce srv-db (atom {:server nil :conns {}}))
+#_(reset! srv-db {:server nil :conns {}})
 
 
-(defn get-chans []
-  (@srv-db :channels))
+(defn get-ws []
+  (@srv-db :conns))
 
-(defn get-chan-rec [ch]
-  (get-in @srv-db [:channels ch]))
-
-(defn add-conn [channel]
-  (swap! srv-db
-         (fn[db] (assoc-in db [:channels channel]
-                          ((@srv-db :on-connect) {:ch channel})))))
-
-(defn del-conn [channel]
-  (swap! srv-db
-         (fn[db] (update-in db [:channels]
-                           (fn[v]
-                             ((@srv-db :on-disconnect) (@srv-db channel))
-                             (dissoc v channel))))))
-
-(defn connect! [channel]
-  (log/info "channel open")
-  (add-conn channel))
-
-(defn disconnect! [channel status]
-  (log/info "channel closed:" status)
-  (del-conn channel))
+(defn get-ws-rec [ws]
+  (get-in @srv-db [:conns ws]))
 
 
 (defn send-msg
-  "Send a message 'msg' to client at channel 'ch'. The message must
-  already be appropriately encoded for the receiver."
-  [ch msg]
-  (send! ch msg))
+  "Send a message 'msg' to client at connection 'ws'. Message will be
+  encoded according to 'encode'"
+  [ws msg & {:keys [encode] :or {encode :binary}}]
+  (if (= (get-in @srv-db [:conns ws])
+         (@srv-db :bpsize))
+    (do (Thread/sleep 1000)
+        (recur ws msg {:encode encode}))
+    (let [msg {:op :msg :payload msg}
+          emsg (if (= encode :binary)
+                 (mpk/pack msg)
+                 (json/write-str msg))]
+      (if (send! ws msg)
+        (swap! srv-db (fn[db] (update-in db [:conns ws] inc)))
+        (do (Thread/sleep 1000)
+            (recur ws msg {:encode encode}))))))
 
-(defn log-and-echo [ch msg]
-  (when (@srv-db :log)
-    (log/info (format "Received msg '%s'" msg)))
-  (send! ch (json/write-str (format "echo msg '%s'" msg))))
+(defn receive [ws msg]
+  (let [msg (if (bytes? msg)
+              (mpk/unpack msg)
+              (json/read-str msg))]
+    (if (and (map? msg)
+             (= (msg :op) :reset))
+      (swap! srv-db (fn[db] (update-in db [:conns ws] (constantly 0))))
+      (async/>!! (@srv-db :chan)
+                 {:op :msg
+                  :payload {:data msg :ws ws}}))))
 
-(defn dispatch [ch msg]
-  (let [msg-handler (-> srv-db deref :msg-handler)]
-    (msg-handler ch msg)))
+
+(defn connect! [ws]
+  (swap! srv-db
+         (fn[db] (update-in
+                 db [:conns ws]
+                 (constantly (dec (@srv-db :bpsize))))))
+  (send-msg ws {:op :reset :payload (@srv-db :bpsize)})
+  (async/>!! (@srv-db :chan) {:op :open :payload ws}))
+
+
+(defn disconnect! [ws status]
+  (swap! srv-db (fn[db] (assoc db :conns (dissoc (db :conns) ws))))
+  (async/>!! (@srv-db :chan) {:op :close :payload {:ws ws :status status}}))
 
 
 (defn ws-handler [request]
@@ -63,28 +68,28 @@
   (with-channel request channel
     (connect! channel)
     (hkit/on-close channel #(disconnect! channel %))
-    (hkit/on-receive channel #(dispatch channel %))))
-
-(defroutes app
-  (GET "/ws" request (ws-handler request)))
+    (hkit/on-receive channel #(receive channel %))))
 
 
-;contains function that can be used to stop http-kit server
-(defonce server (atom nil))
 
-
-(defn start-server [port]
-  (let [threads (@srv-db :threads)]
-    (reset! server
-            (hkit/run-server app {:port port :thread threads}))
-    (log/info (format "Server started on port %s, using %s threads"
-                      port threads))))
+(defn start-server [port & {:keys [uris threads bufsize]
+                            :or {bufsize 100, threads 32, uris ["/ws"]}}]
+  (let [app (apply routes
+                   (mapv #(GET % request (ws-handler request)) uris))]
+    (swap! srv-db
+           (fn[db]
+             (assoc db :server
+                    (hkit/run-server app {:port port :thread threads})
+                    :chan (async/chan (async/sliding-buffer bufsize))
+                    :bpsize (- bufsize 3))))
+    (@srv-db :server)))
 
 (defn stop-server []
-  (log/info "Stopping server ...")
-  (when @server
-    (@server :timeout 100)
-    (reset! server nil)))
+  (let [server (@srv-db :server)]
+    (when server
+      (server :timeout 100)
+      (reset! srv-db {:server nil :conns {}})
+      server)))
 
 
 (defn setup [& {:keys [on-connect on-disconnect msg-handler threads]
