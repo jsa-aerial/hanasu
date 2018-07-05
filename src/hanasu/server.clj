@@ -71,7 +71,6 @@
 
 
 (defn ws-handler [request]
-  (log/info (format "WS-HANDLER, request %s" request) )
   (with-channel request channel
     (connect! channel)
     (hkit/on-close channel #(disconnect! channel %))
@@ -99,18 +98,6 @@
       server)))
 
 
-(defn setup [& {:keys [on-connect on-disconnect msg-handler threads]
-                :or {on-connect identity
-                     on-disconnect identity
-                     msg-handler log-and-echo
-                     threads 32}}]
-  (.addShutdownHook (Runtime/getRuntime) (Thread. stop-server))
-  (reset! srv-db {:log true
-                  :threads threads
-                  :channels {}
-                  :on-connect identity
-                  :on-disconnect identity
-                  :msg-handler msg-handler}))
 
 
 
