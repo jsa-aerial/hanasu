@@ -11,12 +11,13 @@
                  [ch.qos.logback/logback-classic "1.1.3"]
 
                  [com.rpl/specter "1.1.1"]
-                 [clojure-msgpack "1.2.1"]
+
+                 [http.async.client "1.2.0"]
+                 [http-kit "2.2.0"]
+                 [compojure "1.5.1"]
 
                  [environ "1.1.0"]
-                 [compojure "1.5.1"]
+                 [clojure-msgpack "1.2.1"]
                  [org.clojure/data.json "0.2.6"]
-                 #_[cheshire  "5.6.3"]
-                 [http.async.client "1.2.0"]
-                 [http-kit "2.2.0"]]
+                 ]
   )
