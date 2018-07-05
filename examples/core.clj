@@ -27,8 +27,7 @@
   (srv/send-msg ch {:type "echo" :payload payload} :encode :text))
 
 (defn unknown-type-response [ch _]
-  (srv/send-msg ch (json/write-str
-             {:type "error" :payload "ERROR: unknown message type"})))
+  (srv/send-msg ch {:type "error" :payload "ERROR: unknown message type"}))
 
 (defn msg-handler [msg]
   (let [{:keys [data ws]} msg
@@ -76,11 +75,11 @@
       (go-loop [msg (<! ch)]
         (let [{:keys [op payload]} msg]
           (case op
-            :msg
-            (msg-handler payload)
+            :msg (msg-handler payload)
             :open (println :open :payload payload)
             :close (println :close :payload payload)
             :stop (println "Stopping reads...")
+            :bpwait (println "Waiting to send msg " (payload :msg))
             (println :WTF msg))
           (when (not= op :stop)
             (recur (<! ch)))))))

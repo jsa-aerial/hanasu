@@ -28,7 +28,8 @@
          (@srv-db :bpsize))
     (do (async/>!! (@srv-db :chan)
                    {:op :bpwait
-                    :payload {:ws ws :msgcnt (get-in @srv-db [:conns ws])}})
+                    :payload {:ws ws :msg msg :encode encode
+                              :msgcnt (get-in @srv-db [:conns ws])}})
         (Thread/sleep 1000)
         (recur ws msg {:encode encode}))
     (let [msg {:op :msg :payload msg}
