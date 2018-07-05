@@ -86,7 +86,7 @@
            (fn[db]
              (assoc db :server
                     (hkit/run-server app {:port port :thread threads})
-                    :chan (async/chan (async/sliding-buffer bufsize))
+                    :chan (async/chan (async/buffer bufsize))
                     :bpsize (- bufsize 3))))
     (@srv-db :server)))
 
