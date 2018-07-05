@@ -26,12 +26,10 @@
   [ws msg & {:keys [encode] :or {encode :binary}}]
   (if (>= (get-in @srv-db [:conns ws])
          (@srv-db :bpsize))
-    (do (async/>!! (@srv-db :chan)
-                   {:op :bpwait
-                    :payload {:ws ws :msg msg :encode encode
-                              :msgcnt (get-in @srv-db [:conns ws])}})
-        (Thread/sleep 1000)
-        (recur ws msg {:encode encode}))
+    (async/>!! (@srv-db :chan)
+               {:op :bpwait
+                :payload {:ws ws :msg msg :encode encode
+                          :msgcnt (get-in @srv-db [:conns ws])}})
     (let [msg {:op :msg :payload msg}
           emsg (if (= encode :binary)
                  (mpk/pack msg)
