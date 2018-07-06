@@ -91,21 +91,32 @@
 
   (srv/stop-server)
 
-  ;; JSON
-  (srv/send-msg (->> (srv/get-chans) ffirst)
-                (json/write-str "hello, marion, is that you?"))
-  (srv/send-msg  (->> (srv/get-chans) ffirst)
-                 (json/write-str {:one 1 :two [3 4]}))
 
 
-  ;; Binary
-  (srv/send-msg (->> (srv/get-chans) ffirst)
-                (mpk/pack {:one 1 :two [3 4]}))
-  (srv/send-msg (->> (srv/get-chans) ffirst)
-                (mpk/pack {:foo 1}))
 
 
   ;; Client testing....
-  (def ch1 (cli/open-connection "ws://localhost:3000/ws"))
+  (let [ch (cli/open-connection "ws://localhost:3000/ws")]
+    (println "Opening client, reading msgs from " ch)
+    (def cli-handler
+      (go-loop [msg (<! ch)]
+        (let [{:keys [op payload]} msg]
+          (case op
+            :msg (msg-handler payload)
+            :open (println :open :payload payload)
+            :close (println :close :payload payload)
+            :error (println :error :payload payload)
+            :bpwait (let [{:keys [ws msg encode]} payload]
+                      (println "Waiting to send msg " msg)
+                      (Thread/sleep 5000)
+                      (println "Trying resend...")
+                      (srv/send-msg ws msg :encode encode))
+            :sent (println "Sent msg " msg)
+            :stop (println "Stopping reads...")
+            (println :WTF msg))
+          (when (not= op :stop)
+            (recur (<! ch)))))))
+
+
   (cli/send-msg ch1 {:type "echo", :payload {:client "Clojure"}})
 )

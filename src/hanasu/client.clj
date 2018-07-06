@@ -23,16 +23,16 @@
 #_(def url "ws://localhost:3000/ws")
 
 
-(defn send-msg [ch msg & {:keys [encode] :or {encode :binary}}]
+(defn send-msg [ws msg & {:keys [encode] :or {encode :binary}}]
   (let [msg {:op :msg :payload msg}
         emsg (if (= encode :binary)
                (mpk/pack msg)
                (json/write-str msg))
         enc (if (= encode :binary) :byte :text)]
-    (wss/send ch enc emsg)))
+    (wss/send ws enc emsg)))
 
 
-(defn msg-handler [ch msg]
+(defn msg-handler [ws msg]
   (let [msg (if (bytes? msg)
               (mpk/unpack msg)
               (json/read-str msg))]
@@ -40,17 +40,16 @@
       :reset
       (let [bpsize (msg :payload)]
         (swap! cli-db
-               (fn[db] (-> db (update-in [ch :msgcnt] (constantly 0))
-                             (update-in [ch :bpsize] (constantly bpsize)))))
-        (wss/send ch :binary (mpk/pack {:op :reset :payload 0})))
+               (fn[db] (-> db (update-in [ws :msgrcv] (constantly 0))
+                             (update-in [ws :bpsize] (constantly bpsize)))))
+        (wss/send ws :binary (mpk/pack {:op :reset :payload 0})))
 
       :msg
-      (let [client-rec (@cli-db ch)
-            msg (msg :payload)]
-        (if (>= (inc (client-rec :msgcnt)) (client-rec :bpsize))
-          (do (swap! cli-db (fn[db] (update-in db [ch :msgcnt] (constantly 0))))
-              (wss/send ch :binary (mpk/pack {:op :reset :payload 0})))
-          (swap! cli-db (fn[db] (update-in db [ch :msgcnt] inc))))
+      (let [client-rec (@cli-db ws)]
+        (if (>= (inc (client-rec :msgrcv)) (client-rec :bpsize))
+          (do (swap! cli-db (fn[db] (update-in db [ws :msgrcv] (constantly 0))))
+              (wss/send ws :binary (mpk/pack {:op :reset :payload 0})))
+          (swap! cli-db (fn[db] (update-in db [ws :msgrcv] inc))))
         (async/>!! (client-rec :chan) msg)))))
 
 (defn on-open [open-ws]
@@ -62,7 +61,9 @@
               (format "OPEN unequal channels %s %s" open-ws ws))
       (swap! cli-db
              (fn[db]
-               (let [client-rec (assoc client-rec :ws ws :msgcnt 0 :bpsize 0)]
+               (let [client-rec (assoc client-rec
+                                       :ws ws :bpsize 0
+                                       :msgrcv 0 :msgsnt 0)]
                  (assoc db client-chan client-rec, open-ws client-rec))))
       (async/>!! (client-rec :chan) {:op :open :payload ws}))))
 
