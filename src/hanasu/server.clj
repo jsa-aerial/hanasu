@@ -3,77 +3,74 @@
             [compojure.core :refer [GET routes]]
             [clojure.core.async :as async]
 
+            [com.rpl.specter :as sp]
+
             [msgpack.core :as mpk]
             [msgpack.clojure-extensions]
-            [clojure.data.json :as json]))
+            [clojure.data.json :as json]
 
-
-
-(defonce srv-db (atom {:server nil :conns {}}))
-#_(reset! srv-db {:server nil :conns {}})
-
-
-(defn get-ws []
-  (@srv-db :conns))
-
-(defn get-ws-rec [ws]
-  (get-in @srv-db [:conns ws]))
+            [hanasu.common :refer [update-sdb get-sdb]]))
 
 
 (defn send-msg
   "Send a message 'msg' to client at connection 'ws'. Message will be
   encoded according to 'encode'"
   [ws msg & {:keys [encode] :or {encode :binary}}]
-  (if (>= (get-in @srv-db [:conns ws])
-         (@srv-db :bpsize))
-    (async/>!! (@srv-db :chan)
+  (if (>= (get-sdb [:conns ws :msgsnt])
+          (get-sdb :bpsize))
+    (async/>!! (get-sdb :chan)
                {:op :bpwait
                 :payload {:ws ws :msg msg :encode encode
-                          :msgcnt (get-in @srv-db [:conns ws])}})
+                          :msgsnt (get-sdb [:conns ws :msgsnt])}})
     (let [msg {:op :msg :payload msg}
           emsg (if (= encode :binary)
                  (mpk/pack msg)
                  (json/write-str msg))]
       (if (send! ws emsg)
-        (do (swap! srv-db (fn[db] (update-in db [:conns ws] inc)))
-            (async/>!! (@srv-db :chan)
+        (do (update-sdb [:conns ws :msgsnt] inc)
+            (async/>!! (get-sdb :chan)
                        {:op :sent
-                        :payload {:ws ws
-                                  :msgcnt (get-in @srv-db [:conns ws])
-                                  :msg msg}}))
-        (do (Thread/sleep 1000)
-            (recur ws msg {:encode encode}))))))
+                        :payload {:ws ws :msg msg
+                                  :msgsnt (get-sdb [:conns ws :msgsnt])}}))
+        (async/>!! (get-sdb :chan)
+                   {:op :failsnd
+                    :payload {:ws ws :msg msg :encode encode
+                              :msgsnt (get-sdb [:conns ws :msgsnt])}})))))
 
 (defn receive [ws msg]
   (let [msg (if (bytes? msg)
               (mpk/unpack msg)
               (json/read-str msg))]
-    (if (and (map? msg)
-             (= (msg :op) :reset))
-      (swap! srv-db (fn[db] (update-in db [:conns ws] (constantly 0))))
-      (async/>!! (@srv-db :chan)
-                 {:op :msg
-                  :payload {:data msg :ws ws}}))))
+    (case (msg :op)
+      :reset
+      (update-sdb [:conns ws :msgsnt] (-> msg :payload :msgsnt))
+
+      :msg
+      (let [rcvd (get-sdb [:conns ws :msgrcv])]
+        (if (>= (inc rcvd) (get-sdb :bpsize))
+          (do (update-sdb [:conns ws :msgrcv] 0)
+              (send! ws (mpk/pack {:op :reset, :payload {:msgsnt 0}})))
+          (update-sdb [:conns ws :msgrcv] inc))
+        (async/>!! (get-sdb :chan)
+                   {:op :msg, :payload {:data (msg :payload) :ws ws}})))))
 
 
-(defn connect! [ws]
-  (swap! srv-db
-         (fn[db] (update-in
-                 db [:conns ws]
-                 (constantly 0))))
-  (send! ws (mpk/pack {:op :reset :payload (@srv-db :bpsize)}))
-  (async/>!! (@srv-db :chan) {:op :open :payload ws}))
+(defn on-open [ws]
+  (update-sdb [:conns ws :msgsnt] 0)
+  (send! ws (mpk/pack
+             {:op :set :payload {:msgrcv 0 :bpsize (get-sdb :bpsize)}}))
+  (async/>!! (get-sdb :chan) {:op :open :payload ws}))
 
 
-(defn disconnect! [ws status]
-  (swap! srv-db (fn[db] (assoc db :conns (dissoc (db :conns) ws))))
-  (async/>!! (@srv-db :chan) {:op :close :payload {:ws ws :status status}}))
+(defn on-close [ws status]
+  (update-sdb [:conns ws] :rm)
+  (async/>!! (get-sdb :chan) {:op :close :payload {:ws ws :status status}}))
 
 
 (defn ws-handler [request]
   (with-channel request channel
-    (connect! channel)
-    (hkit/on-close channel #(disconnect! channel %))
+    (on-open channel)
+    (hkit/on-close channel #(on-close channel %))
     (hkit/on-receive channel #(receive channel %))))
 
 
@@ -82,16 +79,13 @@
                             :or {bufsize 100, threads 32, uris ["/ws"]}}]
   (let [app (apply routes
                    (mapv #(GET % request (ws-handler request)) uris))]
-    (swap! srv-db
-           (fn[db]
-             (assoc db :server
-                    (hkit/run-server app {:port port :thread threads})
-                    :chan (async/chan (async/buffer bufsize))
-                    :bpsize (- bufsize 3))))
-    (@srv-db :chan)))
+    (update-sdb :server [(hkit/run-server app {:port port :thread threads})]
+               :chan (async/chan (async/buffer bufsize))
+               :bpsize (- bufsize 3))
+    (get-sdb :chan)))
 
 (defn stop-server []
-  (let [server (@srv-db :server)]
+  (let [server (get-sdb [:server 0])]
     (when server
       (server :timeout 100)
       (reset! srv-db {:server nil :conns {}})
