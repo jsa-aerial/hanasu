@@ -56,7 +56,7 @@
 
 
 (defn on-open [ws]
-  (update-sdb [:conns ws :msgsnt] 0)
+  (update-sdb [:conns ws :msgsnt] 0, [:conns ws :msgrcv] 0)
   (send! ws (mpk/pack
              {:op :set :payload {:msgrcv 0 :bpsize (get-sdb :bpsize)}}))
   (async/>!! (get-sdb :chan) {:op :open :payload ws}))
