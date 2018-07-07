@@ -88,7 +88,7 @@
   (let [server (get-sdb [:server 0])]
     (when server
       (server :timeout 100)
-      (reset! srv-db {:server nil :conns {}})
+      (update-sdb)
       server)))
 
 

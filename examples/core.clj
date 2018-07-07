@@ -4,6 +4,8 @@
   (:require
    [hanasu.server :as srv]
    [hanasu.client :as cli]
+   [hanasu.common :as com]
+
    [clojure.core.async :as async :refer [>! <! go-loop go]]
 
    [environ.core :refer [env]]
@@ -20,7 +22,7 @@
 (defn broadcast [ch payload]
   (let [msg {:type "broadcast" :payload payload}]
     (run! #(srv/send-msg % msg)
-          (mapv (fn[[ch m]] ch) (srv/get-ws))))
+          (mapv (fn[[ch m]] ch) (com/get-svrws))))
   (srv/send-msg ch {:type "broadcastResult" :payload payload}))
 
 (defn echo [ch payload]
