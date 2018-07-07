@@ -84,6 +84,7 @@
                       (println "Trying resend...")
                       (srv/send-msg ws msg :encode encode))
             :sent (println "Sent msg " msg)
+            :failsnd (println "Failed send for " msg)
             :stop (println "Stopping reads...")
             (println :WTF msg))
           (when (not= op :stop)
