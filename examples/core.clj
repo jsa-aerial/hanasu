@@ -78,17 +78,17 @@
         (let [{:keys [op payload]} msg]
           (case op
             :msg (msg-handler payload)
-            :open (println :open :payload payload)
-            :close (println :close :payload payload)
+            :open (println :SRV :open :payload payload)
+            :close (println :SRV :close :payload payload)
             :bpwait (let [{:keys [ws msg encode]} payload]
-                      (println "Waiting to send msg " msg)
+                      (println :SRV "Waiting to send msg " msg)
                       (Thread/sleep 5000)
-                      (println "Trying resend...")
+                      (println :SRV "Trying resend...")
                       (srv/send-msg ws msg :encode encode))
-            :sent (println "Sent msg " msg)
-            :failsnd (println "Failed send for " msg)
-            :stop (println "Stopping reads...")
-            (println :WTF msg))
+            :sent (println :SRV "Sent msg " msg)
+            :failsnd (println :SRV "Failed send for " msg)
+            :stop (println :SRV "Stopping reads...")
+            (println :SRV :WTF msg))
           (when (not= op :stop)
             (recur (<! ch)))))))
 
@@ -105,18 +105,18 @@
       (go-loop [msg (<! ch)]
         (let [{:keys [op payload]} msg]
           (case op
-            :msg (msg-handler payload)
-            :open (println :open :payload payload)
-            :close (println :close :payload payload)
-            :error (println :error :payload payload)
+            :msg (println :CLIENT :msg :payload payload)
+            :open (println :CLIENT :open :payload payload)
+            :close (println :CLIENT :close :payload payload)
+            :error (println :CLIENT :error :payload payload)
             :bpwait (let [{:keys [ws msg encode]} payload]
-                      (println "Waiting to send msg " msg)
+                      (println :CLIENT "Waiting to send msg " msg)
                       (Thread/sleep 5000)
-                      (println "Trying resend...")
+                      (println :CLIENT "Trying resend...")
                       (srv/send-msg ws msg :encode encode))
-            :sent (println "Sent msg " msg)
-            :stop (println "Stopping reads...")
-            (println :WTF msg))
+            :sent (println :CLIENT "Sent msg " msg)
+            :stop (println :CLIENT "Stopping reads...")
+            (println :CLIENT :WTF msg))
           (when (not= op :stop)
             (recur (<! ch)))))))
 
