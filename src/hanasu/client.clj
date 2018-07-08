@@ -54,16 +54,21 @@
               (send! ws :binary (mpk/pack {:op :reset :payload {:msgsnt 0}})))
           (update-cdb [ws :msgrcv] inc))
         (async/>!! (get-cdb [ws :chan])
-                   {:op :msg, :payload {:data (msg :payload)}})))))
+                   {:op :msg, :payload {:ws ws :data (msg :payload)}})))))
 
 
 (defn on-open [ws]
   (println "Client OPEN " ws)
   (async/>!! (get-cdb :open-chan) ws))
 
-(defn on-close [ws code reason]
+(defn on-rmtclose [ws code reason]
   (println "Client CLOSE " :code code :reason reason :ws ws)
-  (async/>!! (get-cdb :close-chan) [ws code reason]))
+  (let [client (get-cdb [ws :client])
+        client-chan (get-cdb [ws :chan])]
+    (when (http/open? client)
+      (http/close client)
+      (async/>!! client-chan
+                 {:op :close :payload {:ws ws :code code :reason reason}}))))
 
 (defn on-error [ws err]
   (let [client-rec (get-cdb ws)]
@@ -73,12 +78,12 @@
 (defn open-connection
   [url]
   (let [client (http/create-client)
-        client-chan (async/chan (async/sliding-buffer 3))
+        client-chan (async/chan (async/sliding-buffer 5))
         _ (update-cdb client-chan {:client client :url url :chan client-chan})
         ws (http/websocket client
                            url
                            :open  on-open
-                           :close on-close
+                           :close on-rmtclose
                            :error on-error
                            :text receive
                            :byte receive
@@ -94,13 +99,8 @@
 (defn close-connection [ws]
   (let [client (get-cdb [ws :client])
         client-chan (get-cdb [ws :chan])]
-    (http/close client)
-    (let [[ws code reason] (async/<!! (get-cdb :close-chan))]
-      (async/<!! (get-cdb :close-chan)) ; bogus second call of close callback
-      (update-cdb client-chan :rm ws :rm)
-      (async/>!! client-chan
-                 {:op :close :payload {:ws ws :code code :reason reason}}))
-    client-chan))
+    (update-cdb client-chan :rm ws :rm)
+    (http/close client)))
 
 
 
@@ -112,12 +112,12 @@
 
   (def client (http/create-client))
   (def ws (http/websocket client
-                          url
+                          "ws://localhost:3000/ws"
                           :open  on-open
                           :close on-close
                           :error on-error
-                          :text handle-message
-                          :byte handle-message
+                          :text receive
+                          :byte receive
                           ))
   (http/close client)
 
