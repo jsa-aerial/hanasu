@@ -55,7 +55,9 @@
   ([kp1 vof1 kp2 vof2 kps-vs]
    (apply com/update-db user-db kp1 vof1 kp2 vof2 kps-vs)))
 
-(defn get-udb [key-path] (com/get-db user-db key-path))
+(defn get-udb
+  ([] (com/get-db user-db []))
+  ([key-path] (com/get-db user-db key-path)))
 
 
 (defn user-dispatch [ch op payload]
@@ -64,7 +66,8 @@
            (println :CLIENT :msg :payload payload)
            (update-udb [ws :last] data))
     :open (do (println :CLIENT :open :ws payload)
-              (update-udb payload {:errcnt 0 :last "NYRCV"}))
+              (update-udb payload
+                          {:chan ch :ws payload :errcnt 0 :last "NYRCV"}))
     :close (let [{:keys [ws code reason]} payload]
              (println :CLIENT :RMTclose :payload payload)
              (async/put! ch {:op :stop
@@ -133,6 +136,7 @@
             (recur (<! ch)))))))
 
 
-  (let [ws (first (get-udb []))]
+  ( (first (get-udb [])))
+  (let [ws (ffirst (get-udb []))]
     (cli/send-msg ws {:type "echo", :payload {:client "Clojure"}}))
 )
