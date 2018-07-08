@@ -47,20 +47,31 @@
 
 ;;; Client example stuff ===============================================
 
-(defn cli-open [ws]
-  (println "Client connected to WebSocket."))
-
-(defn cli-close [ws code reason]
-  (println "Client websocket connection closed.\n"
-           (format "[%s] %s" code reason)))
-
-(defn cli-error [ws e]
-  (println "ERROR:" e))
-
-(defn cli-handler [ws msg]
-  (prn (format "got '%s' message: %s" (type msg) msg)))
-
-
+(defn user-dispathc [ch op payload]
+  (case op
+    :msg (let [{:keys [ws data]} payload]
+           (println :CLIENT :msg :payload payload)
+           (update-udb [ws :last] data))
+    :open (do (println :CLIENT :open :ws payload)
+              (update-udb payload {:errcnt 0 :last "NYRCV"}))
+    :close (let [{:keys [ws code reason]} payload]
+             (println :CLIENT :RMTclose :payload payload)
+             (async/put! ch {:op :stop
+                             :payload {:ws ws :cause :rmtclose}}))
+    :error (let [{:keys [ws err]} payload]
+             (println :CLIENT :error :payload payload)
+             (update-udb [ws :errcnt] inc))
+    :bpwait (let [{:keys [ws msg encode]} payload]
+              (println :CLIENT "Waiting to send msg " msg)
+              (Thread/sleep 5000)
+              (println :CLIENT "Trying resend...")
+              (cli/send-msg ws msg :encode encode))
+    :sent (println :CLIENT "Sent msg " (payload :msg))
+    :stop (let [{:keys [ws cause]} payload]
+            (println :CLIENT "Stopping reads... Cause " cause)
+            (cli/close-connection ws)
+            (update-udb ws :rm))
+    (println :CLIENT :WTF :op op :payload payload)))
 
 
 ;;; Client END example stuff ===========================================
@@ -99,27 +110,29 @@
 
 
   ;; Client testing....
+
+  (def user-db (atom {}))
+
+  (defn update-udb
+    ([] (com/update-db user-db {}))
+    ([keypath vorf]
+     (com/update-db user-db keypath vorf))
+    ([kp1 vof1 kp2 vof2 kps-vs]
+     (apply com/update-db user-db kp1 vof1 kp2 vof2 kps-vs)))
+
+  (defn get-udb [key-path] (com/get-db user-db key-path))
+
+
   (let [ch (cli/open-connection "ws://localhost:3000/ws")]
     (println "Opening client, reading msgs from " ch)
     (def cli-handler
       (go-loop [msg (<! ch)]
         (let [{:keys [op payload]} msg]
-          (case op
-            :msg (println :CLIENT :msg :payload payload)
-            :open (println :CLIENT :open :payload payload)
-            :close (println :CLIENT :close :payload payload)
-            :error (println :CLIENT :error :payload payload)
-            :bpwait (let [{:keys [ws msg encode]} payload]
-                      (println :CLIENT "Waiting to send msg " msg)
-                      (Thread/sleep 5000)
-                      (println :CLIENT "Trying resend...")
-                      (srv/send-msg ws msg :encode encode))
-            :sent (println :CLIENT "Sent msg " msg)
-            :stop (println :CLIENT "Stopping reads...")
-            (println :CLIENT :WTF msg))
+          (future (user-dispatch ch op payload))
           (when (not= op :stop)
             (recur (<! ch)))))))
 
 
-  (cli/send-msg ch1 {:type "echo", :payload {:client "Clojure"}})
+  (let [ws (first (get-udb []))]
+    (cli/send-msg ws {:type "echo", :payload {:client "Clojure"}}))
 )
