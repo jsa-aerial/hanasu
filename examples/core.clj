@@ -58,7 +58,7 @@
 (defn get-udb [key-path] (com/get-db user-db key-path))
 
 
-(defn user-dispathc [ch op payload]
+(defn user-dispatch [ch op payload]
   (case op
     :msg (let [{:keys [ws data]} payload]
            (println :CLIENT :msg :payload payload)
