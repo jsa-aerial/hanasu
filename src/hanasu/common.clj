@@ -28,7 +28,7 @@
   ([db kp1 vof1 kp2 vof2 & kps-vs]
    (doseq [[k v] (->> kps-vs (sp/setval sp/BEGINNING [kp1 vof1 kp2 vof2])
                       (partition-all 2))]
-     (update-db k v))
+     (update-db db k v))
    @db))
 
 
