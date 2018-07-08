@@ -6,11 +6,13 @@
 
 (defonce hanasu-db
   (atom {:srv-db {:server nil :conns {}}
-         :cli-db {:open-chan (async/chan) :close-chan (async/chan)}}))
+         :cli-db {:open-chan (async/chan (async/sliding-buffer 10))
+                  :close-chan (async/chan (async/sliding-buffer 10))}}))
 
 #_(reset! hanasu-db
           {:srv-db {:server nil :conns {}}
-           :cli-db {:open-chan (async/chan) :close-chan (async/chan)}})
+           :cli-db {:open-chan (async/chan (async/sliding-buffer 10))
+                  :close-chan (async/chan (async/sliding-buffer 10))}})
 
 
 (defn ev [x] (if (vector? x) x [x]))
@@ -21,7 +23,10 @@
     (sp/select-one [sp/ATOM (apply sp/keypath key-path)] hanasu-db)))
 
 (defn update-db
-  ([] (reset! hanasu-db {:server nil :conns {}}))
+  ([] (reset! hanasu-db
+              {:srv-db {:server nil :conns {}}
+               :cli-db {:open-chan (async/chan (async/sliding-buffer 10))
+                        :close-chan (async/chan (async/sliding-buffer 10))}}))
   ([key-path vorf]
    (let [vorf (if (= vorf :rm) sp/NONE vorf)
          vorf (if (fn? vorf) vorf (constantly vorf))
@@ -60,7 +65,9 @@
 
 
 (defn update-cdb
-  ([] (update-db :cli-db {:open-chan (async/chan) :close-chan (async/chan)}))
+  ([] (update-db :cli-db
+                 {:open-chan (async/chan (async/sliding-buffer 10))
+                  :close-chan (async/chan (async/sliding-buffer 10))}))
   ([key-path vorf]
    (update-db (sp/setval sp/BEFORE-ELEM :cli-db (ev key-path)) vorf))
   ([kp1 vof1 kp2 vof2 & kps-vs]

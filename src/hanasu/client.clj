@@ -57,25 +57,13 @@
                    {:op :msg, :payload {:data (msg :payload)}})))))
 
 
-(defn on-open [open-ws]
-  (let [cur-db (get-cdb)
-        [client ws client-chan] (async/<!! (cur-db :open-chan))
-        client-rec (cur-db client-chan)]
-    (when (not (contains? client-rec open-ws))
-      (assert (= open-ws ws)
-              (format "OPEN unequal channels %s %s" open-ws ws))
-      (let [client-rec (assoc client-rec :ws ws :bpsize 0 :msgrcv 0 :msgsnt 0)]
-        (update-cdb client-chan client-rec open-ws client-rec))
-      (async/>!! (client-rec :chan) {:op :open :payload ws}))))
+(defn on-open [ws]
+  (println "Client OPEN " ws)
+  (async/>!! (get-cdb :open-chan) ws))
 
-(defn on-close [close-ws code reason]
-  (when (contains? (get-cdb) close-ws)
-    (let [[client ws client-chan] (async/<!! (get-cdb :close-chan))]
-      (assert (= close-ws ws)
-              (format "CLOSE unequal channels %s %s" close-ws ws))
-      (update-cdb close-ws :rm, client-chan :rm)
-      (async/>!! client-chan
-                 {:op :close :payload {:ws ws :code code :reason reason}}))))
+(defn on-close [ws code reason]
+  (println "Client CLOSE " :code code :reason reason :ws ws)
+  (async/>!! (get-cdb :close-chan) [ws code reason]))
 
 (defn on-error [ws err]
   (let [client-rec (get-cdb ws)]
@@ -85,7 +73,7 @@
 (defn open-connection
   [url]
   (let [client (http/create-client)
-        client-chan (async/chan)
+        client-chan (async/chan (async/sliding-buffer 3))
         _ (update-cdb client-chan {:client client :url url :chan client-chan})
         ws (http/websocket client
                            url
@@ -95,14 +83,23 @@
                            :text receive
                            :byte receive
                            )]
-    (async/>!! (get-cdb :open-chan) [client ws client-chan])
+    (let [ws (async/<!! (get-cdb :open-chan))
+          client-rec (get-cdb client-chan)
+          client-rec (assoc client-rec :ws ws :bpsize 0 :msgrcv 0 :msgsnt 0)]
+      (async/<!! (get-cdb :open-chan)) ; bogus second call of open callback
+      (update-cdb client-chan client-rec ws client-rec)
+      (async/>!! client-chan {:op :open :payload ws}))
     client-chan))
 
 (defn close-connection [ws]
   (let [client (get-cdb [ws :client])
         client-chan (get-cdb [ws :chan])]
     (http/close client)
-    (async/>!! (get-cdb :close-chan) [client ws client-chan])
+    (let [[ws code reason] (async/<!! (get-cdb :close-chan))]
+      (async/<!! (get-cdb :close-chan)) ; bogus second call of close callback
+      (update-cdb client-chan :rm ws :rm)
+      (async/>!! client-chan
+                 {:op :close :payload {:ws ws :code code :reason reason}}))
     client-chan))
 
 

@@ -80,8 +80,8 @@
   (let [app (apply routes
                    (mapv #(GET % request (ws-handler request)) uris))]
     (update-sdb :server [(hkit/run-server app {:port port :thread threads})]
-               :chan (async/chan (async/buffer bufsize))
-               :bpsize (- bufsize 3))
+                :chan (async/chan (async/buffer bufsize))
+                :bpsize (- bufsize 3))
     (get-sdb :chan)))
 
 (defn stop-server []
