@@ -60,7 +60,7 @@
   ([key-path vorf]
    (update-db cli-db key-path vorf))
   ([kp1 vof1 kp2 vof2 & kps-vs]
-   (apply update-db srv-db kp1 vof1 kp2 vof2 kps-vs)))
+   (apply update-db cli-db kp1 vof1 kp2 vof2 kps-vs)))
 
 (defn get-cdb
   ([] (get-db cli-db []))
