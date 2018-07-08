@@ -46,6 +46,17 @@
 
 
 ;;; Client example stuff ===============================================
+(def user-db (atom {}))
+
+(defn update-udb
+  ([] (com/update-db user-db {}))
+  ([keypath vorf]
+   (com/update-db user-db keypath vorf))
+  ([kp1 vof1 kp2 vof2 kps-vs]
+   (apply com/update-db user-db kp1 vof1 kp2 vof2 kps-vs)))
+
+(defn get-udb [key-path] (com/get-db user-db key-path))
+
 
 (defn user-dispathc [ch op payload]
   (case op
@@ -110,17 +121,6 @@
 
 
   ;; Client testing....
-
-  (def user-db (atom {}))
-
-  (defn update-udb
-    ([] (com/update-db user-db {}))
-    ([keypath vorf]
-     (com/update-db user-db keypath vorf))
-    ([kp1 vof1 kp2 vof2 kps-vs]
-     (apply com/update-db user-db kp1 vof1 kp2 vof2 kps-vs)))
-
-  (defn get-udb [key-path] (com/get-db user-db key-path))
 
 
   (let [ch (cli/open-connection "ws://localhost:3000/ws")]
