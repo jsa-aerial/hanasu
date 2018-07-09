@@ -41,18 +41,19 @@
   (let [msg (if (bytes? msg)
               (mpk/unpack msg)
               (json/read-str msg))]
-    (case (msg :op)
+    (case (or (msg :op) (msg "op"))
       :reset
       (update-sdb [:conns ws :msgsnt] (-> msg :payload :msgsnt))
 
-      :msg
-      (let [rcvd (get-sdb [:conns ws :msgrcv])]
+      (:msg "msg")
+      (let [rcvd (get-sdb [:conns ws :msgrcv])
+            data (or (msg :payload) (msg "payload"))]
         (if (>= (inc rcvd) (get-sdb :bpsize))
           (do (update-sdb [:conns ws :msgrcv] 0)
               (send! ws (mpk/pack {:op :reset, :payload {:msgsnt 0}})))
           (update-sdb [:conns ws :msgrcv] inc))
         (async/>!! (get-sdb :chan)
-                   {:op :msg, :payload {:data (msg :payload) :ws ws}})))))
+                   {:op :msg, :payload {:data data :ws ws}})))))
 
 
 (defn on-open [ws]

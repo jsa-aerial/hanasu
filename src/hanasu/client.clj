@@ -38,7 +38,7 @@
   (let [msg (if (bytes? msg)
               (mpk/unpack msg)
               (json/read-str msg))]
-    (case (msg :op)
+    (case (or (msg :op) (msg "op"))
       :set
       (let [bpsize (-> msg :payload :bpsize)
             msgrcv (-> msg :payload :msgrcv)]
@@ -47,14 +47,17 @@
       :reset
       (update-cdb [ws :msgsnt] (-> msg :payload :msgsnt))
 
-      :msg
-      (let [rcvd (get-cdb [ws :msgrcv])]
+      (:msg "msg")
+      (let [rcvd (get-cdb [ws :msgrcv])
+            data (or (msg :payload) (msg "payload"))]
         (if (>= (inc rcvd) (get-cdb [ws :bpsize]))
           (do (update-cdb [ws :msgrcv] 0)
               (send! ws :binary (mpk/pack {:op :reset :payload {:msgsnt 0}})))
           (update-cdb [ws :msgrcv] inc))
         (async/>!! (get-cdb [ws :chan])
-                   {:op :msg, :payload {:ws ws :data (msg :payload)}})))))
+                   {:op :msg, :payload {:ws ws :data data}}))
+      ;; Else
+      (prn "Client Receive Handler - unknown OP " msg))))
 
 
 (defn on-open [ws]
