@@ -12,7 +12,7 @@
             [hanasu.common :refer [update-cdb get-cdb]]))
 
 
-#_(def send! wss/send)
+(def send! wss/send)
 
 #_(async/go-loop [packet (async/<! (get-cdb :bp-chan))]
   (let [[ws msg] packet]
