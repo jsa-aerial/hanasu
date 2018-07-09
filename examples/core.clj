@@ -17,6 +17,20 @@
    [clojure.tools.logging :as log]))
 
 
+
+
+(def print-chan (async/chan 10))
+
+(go-loop [msg (async/<! print-chan)]
+  (println msg)
+  (recur (async/<! print-chan)))
+
+(defn printchan [& args]
+  (async/put! print-chan (clojure.string/join " " args)))
+
+
+
+
 ;;; Server example stuff ===========================================
 
 (defn broadcast [ch payload]
@@ -58,20 +72,20 @@
 (defn server-dispatch [ch op payload]
   (case op
     :msg (msg-handler payload)
-    :open (do (println :SRV :open :payload payload)
+    :open (do (printchan :SRV :open :payload payload)
               (update-adb :chan ch))
-    :close (println :SRV :close :payload payload)
+    :close (printchan :SRV :close :payload payload)
     :bpwait (let [{:keys [ws msg encode]} payload]
-              (println :SRV "Waiting to send msg " msg)
+              (printchan :SRV "Waiting to send msg " msg)
               (Thread/sleep 5000)
-              (println :SRV "Trying resend...")
+              (printchan :SRV "Trying resend...")
               (srv/send-msg ws msg :encode encode))
-    :sent (println :SRV "Sent msg " (payload :msg))
-    :failsnd (println :SRV "Failed send for " {:op op :payload payload})
+    :sent (printchan :SRV "Sent msg " (payload :msg))
+    :failsnd (printchan :SRV "Failed send for " {:op op :payload payload})
     :stop (let [{:keys [cause]} payload]
-            (println :SRV "Stopping reads... Cause " cause)
+            (printchan :SRV "Stopping reads... Cause " cause)
             (srv/stop-server))
-    (println :SRV :WTF :op op :payload payload)))
+    (printchan :SRV :WTF :op op :payload payload)))
 
 ;;; Server END example stuff ===========================================
 
@@ -96,29 +110,29 @@
 (defn user-dispatch [ch op payload]
   (case op
     :msg (let [{:keys [ws data]} payload]
-           (println :CLIENT :msg :payload payload)
+           (printchan :CLIENT :msg :payload payload)
            (update-udb [ws :last] data))
-    :open (do (println :CLIENT :open :ws payload)
+    :open (do (printchan :CLIENT :open :ws payload)
               (update-udb payload
                           {:chan ch :ws payload :errcnt 0 :last "NYRCV"}))
     :close (let [{:keys [ws code reason]} payload]
-             (println :CLIENT :RMTclose :payload payload)
+             (printchan :CLIENT :RMTclose :payload payload)
              (async/put! ch {:op :stop
                              :payload {:ws ws :cause :rmtclose}}))
     :error (let [{:keys [ws err]} payload]
-             (println :CLIENT :error :payload payload)
+             (printchan :CLIENT :error :payload payload)
              (update-udb [ws :errcnt] inc))
     :bpwait (let [{:keys [ws msg encode]} payload]
-              (println :CLIENT "Waiting to send msg " msg)
+              (printchan :CLIENT "Waiting to send msg " msg)
               (Thread/sleep 5000)
-              (println :CLIENT "Trying resend...")
+              (printchan :CLIENT "Trying resend...")
               (cli/send-msg ws msg :encode encode))
-    :sent (println :CLIENT "Sent msg " (payload :msg))
+    :sent (printchan :CLIENT "Sent msg " (payload :msg))
     :stop (let [{:keys [ws cause]} payload]
-            (println :CLIENT "Stopping reads... Cause " cause)
+            (printchan :CLIENT "Stopping reads... Cause " cause)
             (cli/close-connection ws)
             (update-udb ws :rm))
-    (println :CLIENT :WTF :op op :payload payload)))
+    (printchan :CLIENT :WTF :op op :payload payload)))
 
 
 ;;; Client END example stuff ===========================================
@@ -132,7 +146,7 @@
   ;; Server testing ...
 
   (let [ch (srv/start-server 3000)]
-    (println "Server start, reading msgs from " ch)
+    (printchan "Server start, reading msgs from " ch)
     (def srv-handler
       (go-loop [msg (<! ch)]
         (let [{:keys [op payload]} msg]
@@ -147,7 +161,7 @@
   ;; Client testing....
 
   (let [ch (cli/open-connection "ws://localhost:3000/ws")]
-    (println "Opening client, reading msgs from " ch)
+    (printchan "Opening client, reading msgs from " ch)
     (def cli-handler
       (go-loop [msg (<! ch)]
         (let [{:keys [op payload]} msg]
@@ -156,13 +170,25 @@
             (recur (<! ch)))))))
 
 
-
+  ;; Stop client
   (let [ws (ffirst (get-udb []))
         ch (get-udb [ws :chan])]
-    #_(async/>!! ch {:op :stop :payload {:ws ws :cause :userstop}})
-    (cli/send-msg ws  {:type "echo", :payload {:client "Clojure"}})
-    )
+    (async/>!! ch {:op :stop :payload {:ws ws :cause :userstop}}))
 
+  ;; Send server echo msg
+  (let [ws (ffirst (get-udb []))
+        ch (get-udb [ws :chan])]
+    (cli/send-msg ws  {:type "echo", :payload {:client "Clojure"}}))
 
+  ;; Send server many broadcasts
+  (let [ws (ffirst (get-udb []))
+        ch (get-udb [ws :chan])]
+    (dotimes [_ 50]
+      (cli/send-msg ws  {:type "broadcast", :payload {:client "Clojure"}})))
+
+  ;;Manual reset??
+  (let [ws (ffirst (get-udb []))
+        ch (get-udb [ws :chan])]
+    (cli/send! ws :byte (mpk/pack {:op :reset :payload {:msgsnt 0}})))
 
   )
