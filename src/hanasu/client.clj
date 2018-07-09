@@ -12,7 +12,15 @@
             [hanasu.common :refer [update-cdb get-cdb]]))
 
 
-(def send! wss/send)
+#_(def send! wss/send)
+
+#_(async/go-loop [packet (async/<! (get-cdb :bp-chan))]
+  (let [[ws msg] packet]
+    (send! ws :byte msg)))
+#_(async/put! (get-cdb :bp-chan)
+              [ws (mpk/pack {:op :reset :payload {:msgsnt 0}})])
+
+
 
 (defn send-msg
   [ws msg & {:keys [encode] :or {encode :binary}}]
@@ -52,7 +60,7 @@
             data (or (msg :payload) (msg "payload"))]
         (if (>= (inc rcvd) (get-cdb [ws :bpsize]))
           (do (update-cdb [ws :msgrcv] 0)
-              (send! ws :binary (mpk/pack {:op :reset :payload {:msgsnt 0}})))
+              (send! ws :byte (mpk/pack {:op :reset :payload {:msgsnt 0}})))
           (update-cdb [ws :msgrcv] inc))
         (async/>!! (get-cdb [ws :chan])
                    {:op :msg, :payload {:ws ws :data data}}))
