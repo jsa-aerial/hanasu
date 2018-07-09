@@ -5,7 +5,8 @@
 
 
 (defonce srv-db (atom {:server nil :conns {}}))
-(defonce cli-db (atom {:open-chan (async/chan (async/sliding-buffer 10))}))
+(defonce cli-db (atom {:open-chan (async/chan (async/sliding-buffer 10))
+                       #_:bp-chan #_(async/chan (async/sliding-buffer 10))}))
 
 #_(reset! srv-db {:server nil :conns {}})
 #_(reset! cli-db {:open-chan (async/chan (async/sliding-buffer 10))})
@@ -56,7 +57,8 @@
 
 
 (defn update-cdb
-  ([] (update-db cli-db {:open-chan (async/chan (async/sliding-buffer 10))}))
+  ([] (update-db cli-db {:open-chan (async/chan (async/sliding-buffer 10))
+                         #_:bp-chan #_(async/chan (async/sliding-buffer 10))}))
   ([key-path vorf]
    (update-db cli-db key-path vorf))
   ([kp1 vof1 kp2 vof2 & kps-vs]
