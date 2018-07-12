@@ -56,10 +56,11 @@
      ws payload)))
 
 
-(defonce app-db (atom {}))
+(defonce app-bpsize 100)
+(defonce app-db (atom {:dispatch-chan (async/chan app-bpsize)}))
 
 (defn update-adb
-  ([] (com/update-db app-db {}))
+  ([] (com/update-db app-db {:dispatch-chan (async/chan app-bpsize)}))
   ([keypath vorf]
    (com/update-db app-db keypath vorf))
   ([kp1 vof1 kp2 vof2 kps-vs]
@@ -80,12 +81,18 @@
               (Thread/sleep 5000)
               (printchan :SRV "Trying resend...")
               (srv/send-msg ws msg :encode encode))
+    :bpresume (printchan :SRV "BP Resume " payload)
     :sent (printchan :SRV "Sent msg " (payload :msg))
     :failsnd (printchan :SRV "Failed send for " {:op op :payload payload})
     :stop (let [{:keys [cause]} payload]
             (printchan :SRV "Stopping reads... Cause " cause)
             (srv/stop-server))
     (printchan :SRV :WTF :op op :payload payload)))
+
+#_(def server-dispatcher
+  (future
+    ()))
+
 
 ;;; Server END example stuff ===========================================
 
@@ -127,6 +134,7 @@
               (Thread/sleep 5000)
               (printchan :CLIENT "Trying resend...")
               (cli/send-msg ws msg :encode encode))
+    :bpresume (printchan :CLIENT "BP Resume " payload)
     :sent (printchan :CLIENT "Sent msg " (payload :msg))
     :stop (let [{:keys [ws cause]} payload]
             (printchan :CLIENT "Stopping reads... Cause " cause)
@@ -183,7 +191,7 @@
   ;; Send server many broadcasts
   (let [ws (ffirst (get-udb []))
         ch (get-udb [ws :chan])]
-    (dotimes [_ 50]
+    (dotimes [_ 45]
       (cli/send-msg ws  {:type "broadcast", :payload {:client "Clojure"}})))
 
   ;;Manual reset??
