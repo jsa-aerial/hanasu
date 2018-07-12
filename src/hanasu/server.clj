@@ -3,8 +3,6 @@
             [compojure.core :refer [GET routes]]
             [clojure.core.async :as async]
 
-            [com.rpl.specter :as sp]
-
             [msgpack.core :as mpk]
             [msgpack.clojure-extensions]
             [clojure.data.json :as json]
@@ -43,7 +41,10 @@
               (json/read-str msg))]
     (case (or (msg :op) (msg "op"))
       :reset
-      (update-sdb [:conns ws :msgsnt] (-> msg :payload :msgsnt))
+      (do (update-sdb [:conns ws :msgsnt] (-> msg :payload :msgsnt))
+          (async/>!! (get-sdb :chan)
+                     {:op :bpresume
+                      :payload msg}))
 
       (:msg "msg")
       (let [rcvd (get-sdb [:conns ws :msgrcv])

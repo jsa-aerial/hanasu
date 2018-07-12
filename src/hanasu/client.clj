@@ -3,8 +3,6 @@
             [http.async.client.websocket :as wss]
             [clojure.core.async :as async]
 
-            [com.rpl.specter :as sp]
-
             [msgpack.core :as mpk]
             [msgpack.clojure-extensions]
             [clojure.data.json :as json]
@@ -53,7 +51,10 @@
         (update-cdb [ws :msgrcv] msgrcv, [ws :bpsize] bpsize))
 
       :reset
-      (update-cdb [ws :msgsnt] (-> msg :payload :msgsnt))
+      (do (update-cdb [ws :msgsnt] (-> msg :payload :msgsnt))
+          (async/>!! (get-cdb [ws :chan])
+                     {:op :bpresume
+                      :payload msg}))
 
       (:msg "msg")
       (let [rcvd (get-cdb [ws :msgrcv])
