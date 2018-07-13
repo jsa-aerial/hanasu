@@ -90,7 +90,7 @@
 (defn open-connection
   [url]
   (let [client (http/create-client)
-        client-chan (async/chan (async/sliding-buffer 5))
+        client-chan (async/chan (async/buffer 19))
         _ (update-cdb client-chan {:client client :url url :chan client-chan})
         ws (http/websocket client
                            url

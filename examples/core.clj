@@ -14,7 +14,7 @@
    [msgpack.clojure-extensions]
    [clojure.data.json :as json]
 
-   [clojure.tools.logging :as log]))
+   #_[clojure.tools.logging :as log]))
 
 
 
@@ -57,13 +57,13 @@
 
 
 (defonce app-bpsize 100)
-(defonce app-db (atom {:dispatch-chan (async/chan app-bpsize)}))
+(defonce app-db (atom {:rcvcnt 0 :sntcnt 0}))
 
 (defn update-adb
-  ([] (com/update-db app-db {:dispatch-chan (async/chan app-bpsize)}))
+  ([] (com/update-db app-db {:rcvcnt 0 :sntcnt 0}))
   ([keypath vorf]
    (com/update-db app-db keypath vorf))
-  ([kp1 vof1 kp2 vof2 kps-vs]
+  ([kp1 vof1 kp2 vof2 & kps-vs]
    (apply com/update-db app-db kp1 vof1 kp2 vof2 kps-vs)))
 
 (defn get-adb
@@ -72,20 +72,28 @@
 
 (defn server-dispatch [ch op payload]
   (case op
-    :msg (msg-handler payload)
-    :open (do (printchan :SRV :open :payload payload)
-              (update-adb :chan ch))
-    :close (printchan :SRV :close :payload payload)
+    :msg (let [{:keys [ws]} payload]
+           (update-adb :rcvcnt inc, [ws :rcvcnt] inc)
+           (msg-handler payload))
+    :open (let [ws payload]
+            (printchan :SRV :open :payload ws)
+            (update-adb :chan ch, [ws :rcvcnt] 0, [ws :sntcnt] 0))
+    :close (let [{:keys [ws status]} payload]
+             (printchan :SRV :close :payload payload)
+             (update-adb ws :rm))
     :bpwait (let [{:keys [ws msg encode]} payload]
               (printchan :SRV "Waiting to send msg " msg)
               (Thread/sleep 5000)
               (printchan :SRV "Trying resend...")
               (srv/send-msg ws msg :encode encode))
     :bpresume (printchan :SRV "BP Resume " payload)
-    :sent (printchan :SRV "Sent msg " (payload :msg))
+    :sent (let [{:keys [ws msg]} payload]
+            (printchan :SRV "Sent msg " msg)
+            (update-adb :sntcnt inc, [ws :sntcnt] 0))
     :failsnd (printchan :SRV "Failed send for " {:op op :payload payload})
     :stop (let [{:keys [cause]} payload]
             (printchan :SRV "Stopping reads... Cause " cause)
+            (update-adb)
             (srv/stop-server))
     (printchan :SRV :WTF :op op :payload payload)))
 
@@ -106,7 +114,7 @@
   ([] (com/update-db user-db {}))
   ([keypath vorf]
    (com/update-db user-db keypath vorf))
-  ([kp1 vof1 kp2 vof2 kps-vs]
+  ([kp1 vof1 kp2 vof2 & kps-vs]
    (apply com/update-db user-db kp1 vof1 kp2 vof2 kps-vs)))
 
 (defn get-udb
@@ -118,10 +126,10 @@
   (case op
     :msg (let [{:keys [ws data]} payload]
            (printchan :CLIENT :msg :payload payload)
-           (update-udb [ws :last] data))
-    :open (do (printchan :CLIENT :open :ws payload)
-              (update-udb payload
-                          {:chan ch :ws payload :errcnt 0 :last "NYRCV"}))
+           (update-udb [ws :lastrcv] data, [ws :rcvcnt] inc))
+    :open (let [ws payload]
+            (printchan :CLIENT :open :ws ws)
+            (update-udb ws {:chan ch, :rcvcnt 0, :sntcnt 0, :errcnt 0}))
     :close (let [{:keys [ws code reason]} payload]
              (printchan :CLIENT :RMTclose :payload payload)
              (async/put! ch {:op :stop
@@ -135,7 +143,9 @@
               (printchan :CLIENT "Trying resend...")
               (cli/send-msg ws msg :encode encode))
     :bpresume (printchan :CLIENT "BP Resume " payload)
-    :sent (printchan :CLIENT "Sent msg " (payload :msg))
+    :sent (let [{:keys [ws msg]} payload]
+            (printchan :CLIENT "Sent msg " msg)
+            (update-udb [ws :lastsnt] msg, [ws :sntcnt] inc))
     :stop (let [{:keys [ws cause]} payload]
             (printchan :CLIENT "Stopping reads... Cause " cause)
             (cli/close-connection ws)
@@ -178,24 +188,27 @@
             (recur (<! ch)))))))
 
 
+  (defn get-test-ws []
+    (->> (get-udb []) keys (filter #(-> % keyword? not)) first))
+
   ;; Stop client
-  (let [ws (ffirst (get-udb []))
+  (let [ws (get-test-ws)
         ch (get-udb [ws :chan])]
     (async/>!! ch {:op :stop :payload {:ws ws :cause :userstop}}))
 
   ;; Send server echo msg
-  (let [ws (ffirst (get-udb []))
+  (let [ws (get-test-ws)
         ch (get-udb [ws :chan])]
     (cli/send-msg ws  {:type "echo", :payload {:client "Clojure"}}))
 
   ;; Send server many broadcasts
-  (let [ws (ffirst (get-udb []))
+  (let [ws (get-test-ws)
         ch (get-udb [ws :chan])]
     (dotimes [_ 45]
       (cli/send-msg ws  {:type "broadcast", :payload {:client "Clojure"}})))
 
   ;;Manual reset??
-  (let [ws (ffirst (get-udb []))
+  (let [ws (get-test-ws)
         ch (get-udb [ws :chan])]
     (cli/send! ws :byte (mpk/pack {:op :reset :payload {:msgsnt 0}})))
 
