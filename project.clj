@@ -1,4 +1,4 @@
-(defproject hanasu "0.1.0-SNAPSHOT"
+(defproject aerial.hanasu "0.1.0"
   :description "Light weight simple websocket communications"
   :url "http://example.com/FIXME"
   :license {:name "The MIT License (MIT)"
@@ -30,24 +30,25 @@
   ;;:hooks [leiningen.cljsbuild]
 
   ;; Turns out `hooks' is deprecated (despite still being in the docs)
+  ;;
   :prep-tasks ["compile" ["cljsbuild" "once" "min"]]
 
   :cljsbuild {:builds
               [{:id "dev"
-                :source-paths ["src/cljc" "src/cljs"]
+                :source-paths ["src/cljs"]
                 :jar true
 
                 ;; The presence of a :figwheel configuration here
                 ;; will cause figwheel to inject the figwheel client
                 ;; into your build
-                :figwheel {:on-jsload "hanasu.client/on-js-reload"
+                :figwheel {:on-jsload "aerial.hanasu.client/on-js-reload"
                            ;; :open-urls will pop open your application
                            ;; in the default browser once Figwheel has
                            ;; started and compiled your application.
                            ;; Comment this out once it no longer serves you.
                            :open-urls ["http://localhost:3449/index.html"]}
 
-                :compiler {:main hanasu.client
+                :compiler {:main aerial.hanasu.client
                            :asset-path "js/compiled/out"
                            :output-to "resources/public/js/compiled/hanasu.js"
                            :output-dir "resources/public/js/compiled/out"
@@ -62,7 +63,7 @@
                {:id "min"
                 :source-paths ["src/cljs"]
                 :compiler {:output-to "resources/public/js/compiled/hanasu.js"
-                           :main hanasu.client
+                           :main aerial.hanasu.client
                            :optimizations :advanced
                            :pretty-print false}}]}
 
