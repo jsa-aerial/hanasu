@@ -1,6 +1,6 @@
 (defproject aerial.hanasu "0.1.0"
   :description "Light weight simple websocket communications"
-  :url "http://example.com/FIXME"
+  :url "https://github.com/jsa-aerial/hanasu"
   :license {:name "The MIT License (MIT)"
             :url "http://opensource.org/licenses/MIT"}
   :dependencies [[org.clojure/clojure "1.9.0"]
