@@ -27,10 +27,13 @@
   ;; lein compile
   ;; lein test
   ;; lein jar
-  :hooks [leiningen.cljsbuild]
+  ;;:hooks [leiningen.cljsbuild]
+
+  ;; Turns out `hooks' is deprecated (despite still being in the docs)
+  :prep-tasks ["compile" ["cljsbuild" "once" "min"]]
 
   :cljsbuild {:builds
-              [#_{:id "dev"
+              [{:id "dev"
                 :source-paths ["src/cljc" "src/cljs"]
                 :jar true
 
