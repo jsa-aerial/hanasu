@@ -75,12 +75,16 @@
     (hkit/on-close channel #(on-close channel %))
     (hkit/on-receive channel #(receive channel %))))
 
+(defn hanasu-handlers [& {:keys [uris] :or {uris ["/ws"]}}]
+  (mapv #(GET % request (ws-handler request)) uris))
 
 
-(defn start-server [port & {:keys [uris threads bufsize]
+(defn start-server [port & {:keys [main-handler uris threads bufsize]
                             :or {bufsize 100, threads 32, uris ["/ws"]}}]
-  (let [app (apply routes
-                   (mapv #(GET % request (ws-handler request)) uris))]
+  (let [app (if main-handler
+              main-handler
+              (apply routes
+                     (mapv #(GET % request (ws-handler request)) uris)))]
     (update-sdb :server [(hkit/run-server app {:port port :thread threads})]
                 :chan (async/chan (async/buffer bufsize))
                 :bpsize (- bufsize 3))
