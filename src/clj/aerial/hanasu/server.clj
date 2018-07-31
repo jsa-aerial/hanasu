@@ -44,7 +44,7 @@
       (do (update-sdb [:conns ws :msgsnt] (-> msg :payload :msgsnt))
           (async/>!! (get-sdb :chan)
                      {:op :bpresume
-                      :payload msg}))
+                      :payload {:ws ws, :msg msg}}))
 
       (:msg "msg")
       (let [rcvd (get-sdb [:conns ws :msgrcv])
