@@ -7,7 +7,7 @@ A very light weight, simple websocket based messaging system in Clojure(Script).
 
 To install, add the following to your project `:dependencies`:
 
-    [aerial.hanasu "0.1.0"]
+    [aerial.hanasu "0.2.1"]
 
 ## Message Envelope
 
