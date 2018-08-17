@@ -38,7 +38,7 @@ The set of operators defining the envelope protocol are as follows.
 
 Descriptions follow
 
-  * `:open` Upon opening of a connection an 'open' message will be sent whose payload is the *local websocket* for the connection. Both client and server get this message. You can use this websocket as a key uniquely identifying the connection in a local (in memory or otherwise) database for your application.
+  * `:open` Upon opening of a connection by a client, an 'open' message will be sent whose payload is the *websocket object* for the connection. Both client and server get this message. You can use this websocket as a key uniquely identifying the connection in a local (in memory or otherwise) database for your application.
 
   * `:close` When either client or server closes a connection, a 'close' message is sent to the other party with the following map as the payload:
 
@@ -62,8 +62,7 @@ The application message (the value of the `:data` key) will typically have a 'hi
  :payload <application level data>}
 ```
 
-
-
+  * `:bpwait` Hanasu has a built in mechansim for providing user / application level feedback on backpressure. When a Hanasu server is started, one of the parameters it can be passed is how many messages (of any kind) can be exchanged before checking to see if both parties are in agreement on those transmitted. Hanasu depends on the underlying semantics of
 
 
 
