@@ -62,7 +62,13 @@ The application message (the value of the `:data` key) will typically have a 'hi
  :payload <application level data>}
 ```
 
-  * `:bpwait` Hanasu has a built in mechansim for providing user / application level feedback on backpressure. When a Hanasu server is started, one of the parameters it can be passed is how many messages (of any kind) can be exchanged before checking to see if both parties are in agreement on those transmitted. Hanasu depends on the underlying semantics of
+  * `:bpwait` Hanasu has a built in mechansim for providing user / application level feedback on backpressure. When a Hanasu server is started, one of the parameters it can be passed is how many messages (of any kind) can be exchanged before checking to see if both parties are in agreement on those transmitted. Hanasu depends on the underlying semantics of websockets (RFC 6455) that ensures (sans network, server, or client failures/crashes) that messages sent will be received and in the order they were sent. So, the underlying protocol ensures no messages are dropped and that they arrive in the same order. So, if Hanasu server and clients agree on the sent/received msg counts both parties know the end points are processing in sync.
+
+In normal operation when a party reaches a send or received limit, it will send a 'reset' message to the other informing it that all messages so far have been processed. Both parties reset their respective counts and proceed again. These 'reset' messages are transparent to a user of the library - they are not one of the user visible envelope messages.
+
+However, if one of the parties is unable to keep up, the other will know as it will encounter the limit on received or sent messages without a reset. At this point, any attempt to send a message will cause a `:bpwait` (backpressure wait) message operator to be sent to the sender. Any attempt to send while in a backpressure wait will result in another such `:bpwait` message operator. If the party causing the issue catches up so that it can issue a reset message, the party which had encountered the `:bpwait` will receive a `bpresume` message operator and at that point new sends will proceed.
+
+  * `:bpresume` 
 
 
 
@@ -77,37 +83,7 @@ Example:
    [aerial.hanasu.common :as com]))
 ```
 
-### TeX(LaTeX)
-   
-$$E=mc^2$$
 
-Inline $$E=mc^2$$ Inline，Inline $$E=mc^2$$ Inline。
-
-$$\(\sqrt{3x-1}+(1+x)^2\)$$
-                    
-$$\sin(\alpha)^{\theta}=\sum_{i=0}^{n}(x^i + \cos(f))$$
-                
-### FlowChart
-
-```flow
-st=>start: Login
-op=>operation: Login operation
-cond=>condition: Successful Yes or No?
-e=>end: To admin
-
-st->op->cond
-cond(yes)->e
-cond(no)->op
-```
-
-### Sequence Diagram
-                    
-```seq
-Andrew->China: Says Hello 
-Note right of China: China thinks\nabout it 
-China-->Andrew: How are you? 
-Andrew->>China: I am good thanks!
-```
 
 ## License
 
