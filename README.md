@@ -53,7 +53,6 @@ The set of operators defining the envelope protocol are as follows.
   * `:bpwait`
   * `:bpresume`
   * `:sent`
-  * `:stop`
   * `:error`
 
 Descriptions follow
@@ -96,10 +95,40 @@ In normal operation when a party reaches a send or receive limit, it will send a
 
 However, if one of the parties is unable to keep up, the other will know as it will encounter the limit on received or sent messages without a reset. At this point, any attempt to send a message will cause a `:bpwait` (backpressure wait) message operator to be sent to the sender's channel. Any attempt to send while in a backpressure wait will result in another such `:bpwait` message operator. If the party causing the issue catches up so that it can issue a reset message, the party which had encountered the `:bpwait` will receive a `bpresume` message operator on its channel and at that point new sends will proceed.
 
+The payload for a `bpwait` operator is:
+
+```Clojure
+{:ws <the websocket object>
+ :msg <the application message>
+ :encode <message transport encoding :binary or :text>
+ :msgsnt <number of messages sent to this point>}}
+```
+
+This information is intended to be enough to take an appropriate action that is correct for application's semantics. The `:msg` key's value is the exact message argument that was given to the `send-msg` call that caused the `:bpwait` envelope to be issued. The `:encode` key's value indicates the encoding given to the `send-msg` call. A typical action would be to save the message and wait on an application level backpressure channel which will be issued a 'resume' upon receiving a `:bpresume`.
+
+
   * `:bpresume`
 
-The `bpresume` operator
+The `bpresume` operator is sent to a party's channel after a backpressure 'reset' message is received. The payload for the envelope is not relevant for user/application level code, but is simply the message count reset value used by the party to reset its backpressure operation. The main purpose of `:bpresume` is to trigger an application level response based on the applications response to the earlier `:bpwait` envelope. A typical action would be to send a 'resume' message to an application level backpressure channel.
 
+  * `:sent`
+
+Upon a successful sending of a message by a `send-msg` call, a `:sent` envelope will be issued to the senders channel. In most cases this can be safely ignored, but there may be circumstances where it is useful. The payload is:
+
+```Clojure
+{:ws <the websocket object>
+ :msg <the application message>
+ :msgsnt <number of the message of total sent>}
+```
+
+  * `:error`
+
+If a client's underlying websocket encounters some error, an `:error` envelope is issued to the client's channel. The payload for this is:
+
+```Clojure
+{:ws <websocket object>
+ :err <situation dependent information on error>}
+```
 
 
 
