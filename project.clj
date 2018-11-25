@@ -1,4 +1,4 @@
-(defproject aerial.hanasu "0.2.1"
+(defproject aerial.hanasu "0.2.2"
   :description "Light weight simple websocket communications"
   :url "https://github.com/jsa-aerial/hanasu"
   :license {:name "The MIT License (MIT)"
@@ -46,7 +46,7 @@
                            ;; in the default browser once Figwheel has
                            ;; started and compiled your application.
                            ;; Comment this out once it no longer serves you.
-                           :open-urls ["http://localhost:3449/index.html"]}
+                           :open-urls ["http://localhost:3449/indexH.html"]}
 
                 :compiler {:main aerial.hanasu.client
                            :asset-path "js/compiled/out"
