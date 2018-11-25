@@ -8,7 +8,7 @@
 
    [clojure.core.async :as async :refer [>! <! go-loop go]]
 
-   [environ.core :refer [env]]
+   #_[environ.core :refer [env]]
 
    [msgpack.core :as mpk]
    [msgpack.clojure-extensions]
