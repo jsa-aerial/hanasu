@@ -13,14 +13,15 @@
 (defn send-msg
   "Send a message 'msg' to client at connection 'ws'. Message will be
   encoded according to 'encode'"
-  [ws msg & {:keys [encode] :or {encode :binary}}]
+  [ws msg & {:keys [encode noenvelope] :or {encode :binary noenvelope false}}]
   (if (>= (get-sdb [:conns ws :msgsnt])
           (get-sdb :bpsize))
     (async/>!! (get-sdb :chan)
                {:op :bpwait
                 :payload {:ws ws :msg msg :encode encode
+                          :noenvelope noenvelope
                           :msgsnt (get-sdb [:conns ws :msgsnt])}})
-    (let [msg {:op :msg :payload msg}
+    (let [msg (if noenvelope msg {:op :msg :payload msg})
           emsg (if (= encode :binary)
                  (mpk/pack msg)
                  (json/write-str msg))]
@@ -32,7 +33,8 @@
                                   :msgsnt (get-sdb [:conns ws :msgsnt])}}))
         (async/>!! (get-sdb :chan)
                    {:op :failsnd
-                    :payload {:ws ws :msg msg :encode encode
+                    :payload {:ws ws :msg msg
+                              :encode encode :noenvelope noenvelope
                               :msgsnt (get-sdb [:conns ws :msgsnt])}})))))
 
 (defn receive [ws msg]
