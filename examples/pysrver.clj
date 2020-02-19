@@ -35,7 +35,7 @@
         {:keys [op payload]} data]
     (printchan :msg-handler :op op :data data)
     (if (#{:done "done"} op)
-      (srv/send-msg (get-adb :ws) {:op :stop :payload {}} :noenvelope true)
+      (srv/send-msg ws {:op :stop :payload {}} :noenvelope true)
       (srv/send-msg ws {:op "echo" :payload data}))))
 
 (defn server-dispatch [ch op payload]
