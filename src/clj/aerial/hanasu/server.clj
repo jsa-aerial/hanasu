@@ -12,7 +12,7 @@
 
 (defn send-msg
   "Send a message 'msg' to client at connection 'ws'. Message will be
-  encoded according to 'encode'"
+  encoded according to 'encode'. If 'noenvelope' is true, then 'msg' will not be wrapped in a standard hanasu envelope and will be sent as is."
   [ws msg & {:keys [encode noenvelope] :or {encode :binary noenvelope false}}]
   (if (>= (get-sdb [:conns ws :msgsnt])
           (get-sdb :bpsize))
