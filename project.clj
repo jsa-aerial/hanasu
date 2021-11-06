@@ -1,21 +1,22 @@
-(defproject aerial.hanasu "0.2.4"
+(defproject aerial.hanasu "0.2.7"
   :description "Light weight simple websocket communications"
   :url "https://github.com/jsa-aerial/hanasu"
   :license {:name "The MIT License (MIT)"
             :url "http://opensource.org/licenses/MIT"}
-  :dependencies [[org.clojure/clojure "1.10.1"]
+  :dependencies [[org.clojure/clojure "1.10.3"]
                  [org.clojure/clojurescript "1.10.439"]
-                 [org.clojure/core.async "0.4.474"]
+                 ;;[org.clojure/clojurescript "1.10.891"]
+                 [org.clojure/core.async "1.4.627"]
 
                  [com.rpl/specter "1.1.3"]
 
                  [http.async.client "1.2.0"]
-                 [http-kit "2.2.0"]
-                 [compojure "1.5.1"]
-                 [haslett "0.1.4"]
+                 [http-kit "2.5.3"]
+                 [compojure "1.6.2"]
+                 [haslett "0.1.6"]
 
                  [clojure-msgpack "1.2.1"]
-                 [org.clojure/data.json "0.2.6"]
+                 [org.clojure/data.json "2.4.0"]
                  ]
 
   :plugins [[lein-figwheel "0.5.16"]
