@@ -10,6 +10,8 @@
 
                  [com.rpl/specter "1.1.3"]
 
+                 [javax.xml.bind/jaxb-api "2.3.0"] ; needed jvm9+ http-kit FU
+
                  [http.async.client "1.2.0"]
                  [http-kit "2.5.3"]
                  [compojure "1.6.2"]
