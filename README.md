@@ -1,3 +1,5 @@
+[![Clojars Project](https://img.shields.io/clojars/v/aerial.hanasu.svg)](https://clojars.org/aerial.hanasu)
+
 # hanasu
 
 A very light weight, simple websocket based messaging system in Clojure(Script). Converse/talk 話す(hanasu).
@@ -7,7 +9,7 @@ A very light weight, simple websocket based messaging system in Clojure(Script).
 
 To install, add the following to your project `:dependencies`:
 
-    [aerial.hanasu "0.2.4"]
+    [aerial.hanasu "0.2.7"]
 
 ## General
 
