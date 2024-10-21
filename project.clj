@@ -1,4 +1,4 @@
-(defproject aerial.hanasu "0.2.7"
+(defproject aerial.hanasu "0.2.8"
   :description "Light weight simple websocket communications"
   :url "https://github.com/jsa-aerial/hanasu"
   :license {:name "The MIT License (MIT)"
