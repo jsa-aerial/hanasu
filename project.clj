@@ -1,9 +1,9 @@
-(defproject aerial.hanasu "0.2.8"
+(defproject aerial.hanasu "0.2.9"
   :description "Light weight simple websocket communications"
   :url "https://github.com/jsa-aerial/hanasu"
   :license {:name "The MIT License (MIT)"
             :url "http://opensource.org/licenses/MIT"}
-  :dependencies [[org.clojure/clojure "1.11.3"]
+  :dependencies [[org.clojure/clojure "1.12.1"]
                  [org.clojure/clojurescript "1.10.439"]
                  ;;[org.clojure/clojurescript "1.10.891"]
                  [org.clojure/core.async "1.4.627"]
